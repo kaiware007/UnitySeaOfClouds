@@ -27,6 +27,7 @@ Shader "Custom/DepthRender"
       #pragma target 3.0
 	  #pragma multi_compile __ DEPTH_DEBUG
 
+	  sampler2D _MainTex;
       UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
 
 	  float _XThreshold;
@@ -35,6 +36,7 @@ Shader "Custom/DepthRender"
 
 	  float4x4 _TRS;
 	  float4x4 _InvVP;
+	  half _Intensity;
 
       struct v2f {
 	    float4 pos : SV_POSITION;
@@ -56,6 +58,7 @@ Shader "Custom/DepthRender"
 #endif
 		screenPos.x *= _ScreenParams.x / _ScreenParams.y;
 		return screenPos.xy / screenPos.w;
+		//return screenPos.xy;
 	  }
 
 	  float3 GetCameraForward()     { return UNITY_MATRIX_V[2].xyz;    }
@@ -83,11 +86,15 @@ Shader "Custom/DepthRender"
 	  {
 		//float len = depthLength(depth);
 		float4 projPos = float4(uv.xy * 2.0 - float2(1.0, 1.0), depth, 1.0);
+		//float4 projPos = float4(uv.xy, depth, 1.0);
 		//projPos.xyz *= len;
 		float4 pos = mul(invVP, projPos);
 		//pos.y *= -_ProjectionParams.x;
 		//float len = depthLength(pos.w);
+		//float4 pos = mul(unity_CameraInvProjection, projPos);
 		pos.xyz *= pos.w * 0.25;
+		
+		//return mul(_InvVP, float4(pos.xyz, 1)).xyz;
 
 		//pos.z *= len;
 		return pos.xyz;
@@ -97,10 +104,11 @@ Shader "Custom/DepthRender"
 	  }
 
       float4 frag(v2f i) : SV_TARGET{
+		half4 source = tex2D(_MainTex, i.uv);
 		float depth = Linear01Depth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv).x );
 		//float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv).x;
-		float3 cameraPos = _WorldSpaceCameraPos;
-		float3 rayDir = GetRayDirection(i.screenPos);
+		//float3 cameraPos = _WorldSpaceCameraPos;
+		//float3 rayDir = GetRayDirection(i.screenPos);
 		//rayDir = mul(_TRS, rayDir);
 		//float screenDistance = length(i.screenPos.xy);
 
@@ -116,7 +124,7 @@ Shader "Custom/DepthRender"
 #ifdef DEPTH_DEBUG
 		return float4(depth, depth, depth, 1);
 #else
-		return  float4(depthPos.x < _XThreshold ? 0 : 1, depthPos.y < _YThreshold ? 0 : 1, depthPos.z < _ZThreshold ? 0 : 1, 1);
+		return  lerp(source, float4(depthPos.x < _XThreshold ? 0 : 1, depthPos.y < _YThreshold ? 0 : 1, depthPos.z < _ZThreshold ? 0 : 1, 1), _Intensity);
 #endif
       }
       ENDCG

@@ -4,18 +4,16 @@ using UnityEngine;
 
 [ExecuteInEditMode]
 [RequireComponent(typeof(Camera))]
-public class RenderDepth : MonoBehaviour {
+public class RenderDepth2 : MonoBehaviour {
 
     public Vector3 threshold;
-
-    public Material mat;
     [SerializeField, Range(0, 1)] float _intensity = 0.5f;
+    [SerializeField, HideInInspector] Shader _shader;
+
+    Material mat;
 
     private Camera camera;
-    private Matrix4x4 view;
-    private Matrix4x4 proj;
-    private Matrix4x4 invVP;
-
+    
     private void OnEnable()
     {
         camera = GetComponent<Camera>();
@@ -24,22 +22,21 @@ public class RenderDepth : MonoBehaviour {
     
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-        Matrix4x4 trs = Matrix4x4.TRS(transform.position, transform.rotation, transform.localScale);
-        //Matrix4x4 trs = Matrix4x4.TRS(Vector3.zero, transform.rotation, Vector3.one);
-        view = this.camera.worldToCameraMatrix;
-        //Matrix4x4 view = this.camera.cameraToWorldMatrix;
-        //proj = this.camera.projectionMatrix;
-        proj = GL.GetGPUProjectionMatrix(this.camera.projectionMatrix,false);
-        invVP = Matrix4x4.Inverse(proj * view);
-        //invVP = (view);
+        if (mat == null)
+        {
+            mat = new Material(_shader);
+            mat.hideFlags = HideFlags.DontSave;
+        }
+
+        Matrix4x4 view = this.camera.cameraToWorldMatrix;
 
         mat.SetFloat("_XThreshold", threshold.x);
         mat.SetFloat("_YThreshold", threshold.y);
         mat.SetFloat("_ZThreshold", threshold.z);
-        mat.SetMatrix("_TRS", trs);
-        mat.SetMatrix("_InvVP", invVP);
-        //mat.SetMatrix("_InvVP", this.camera.projectionMatrix);
+
+        mat.SetMatrix("_InverseView", view);
         mat.SetFloat("_Intensity", _intensity);
+
         Graphics.Blit(source, destination, mat);
     }
 

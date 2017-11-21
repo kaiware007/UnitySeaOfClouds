@@ -1,4 +1,6 @@
-﻿Shader "Raymarching/DepthTest"
+﻿// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
+
+Shader "Raymarching/DepthTest"
 {
 	Properties
 	{
@@ -10,7 +12,8 @@
 		_Rotation("Rotate (XYZ) Axis (W) no use", Vector) = (0, 0, 0, 0)
 		_Scale("Scale (XYZ) Axis (W) no use", Vector) = (1, 1, 1, 0)
 
-		//_ObjectSpaceRaymarch("Object Space Raymarch", Float) = 0
+		_Density("Density", Float) = 0.5
+		_MaxDistance("Max Distance", Range(0,10)) = 0.5 
 	}
 
 	CGINCLUDE
@@ -72,6 +75,7 @@
 	{
 		float4 vertex		: SV_POSITION;
 		float4 screenPos	: TEXCOORD0;
+		float4 worldPos		: TEXCOORD1;
 	};
 
 	//MRTにより出力するG-Buffer
@@ -145,6 +149,9 @@
 	float4 _Specular;
 	float4 _Emission;
 
+	float _Density;
+	float _MaxDistance;
+
 	UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
 
 	float CustomDistanceFunction(float3 pos) 
@@ -202,17 +209,20 @@
 			)) * 0.5 + 0.5;
 	}
 
-	raymarchOut raymarch(float2 screenPos, transform tr, const int trial_num)
+	raymarchOut raymarch(v2f In, transform tr, const int trial_num)
 	{
 		raymarchOut o;
 
-		float3 rayDir = GetRayDir(screenPos);
+		float3 rayDir = GetRayDir(In.screenPos);
 		float3 camPos = GetCameraPosition();
-		float maxDistance = GetCameraMaxDistance();
+		//float maxDistance = GetCameraMaxDistance();
+		float maxDistance = _MaxDistance;
 
 		o.length = 0;
-		o.pos = camPos + _ProjectionParams.y * rayDir;
-		float2 uv = (screenPos.xy + float2(1, 1)) * 0.5;
+		//o.pos = camPos + _ProjectionParams.y * rayDir;
+		o.pos = In.worldPos;
+		
+		float2 uv = (In.screenPos.xy + float2(1, 1)) * 0.5;
 #if UNITY_UV_STARTS_AT_TOP
 		uv.y = 1.0 - uv.y;
 #endif
@@ -223,15 +233,17 @@
 //#endif
 		for (o.count = 0; o.count < trial_num; ++o.count) {
 			//o.distance = CUSTOM_DISTANCE_FUNCTION(Localize(o.pos, tr));
-			o.distance = 0.01f;
+			o.distance = 0.01;	// 少しずつ進ませる
 			o.length += o.distance;
 			o.pos += rayDir * o.distance;
-			float rayDepth = Linear01Depth(GetDepth(o.pos));
+			//float rayDepth = Linear01Depth(GetDepth(o.pos));
 			//float depth = Linear01Depth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, screenPos).x);
-			
+			float4 pos = UnityObjectToClipPos(float4(o.pos, 1));
+			float rayDepth = Linear01Depth(pos.z / pos.w);
 			//if (o.distance < RAY_HIT_DISTANCE || o.length > maxDistance)
 			//if (o.distance < RAY_HIT_DISTANCE || o.length > maxDistance || rayDepth >= depth)
 			if (o.length > maxDistance || rayDepth >= depth)
+			//if (o.length > maxDistance)
 				break;
 		}
 
@@ -244,6 +256,7 @@
 		o.vertex = UnityObjectToClipPos(v.vertex);
 		// ラスタライズしてフラグメントシェーダで各ピクセルの座標として使う
 		o.screenPos = o.vertex;
+		o.worldPos = mul(unity_ObjectToWorld, v.vertex);
 		return o;
 	}
 
@@ -256,26 +269,39 @@
 		transform tr;
 		tr = CUSTOM_TRANSFORM(0, 0, 1);
 
-		rayOut = raymarch(i.screenPos.xy, tr, 100);
+		rayOut = raymarch(i, tr, 100);
 		//clip(-rayOut.distance + RAY_HIT_DISTANCE);
 
 		float2 uv = (i.screenPos.xy + float2(1, 1)) * 0.5;
 #if UNITY_UV_STARTS_AT_TOP
 		uv.y = 1.0 - uv.y;
 #endif
-		//float depth = GetDepth(rayOut.pos);
+		float4 pos = UnityObjectToClipPos(float4(rayOut.pos, 1));
+		float rayDepth = Linear01Depth(pos.z / pos.w);
+		//float rayDepth = Linear01Depth(pos.z / pos.w);
+		//float rayDepth = GetDepth(rayOut.pos);
+		//float rayDepth = Linear01Depth(GetDepth(rayOut.pos));
 		float depth = Linear01Depth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv).x);
 
 		float3 normal = GetNormal(Localize(rayOut.pos, tr));
-
+		//float dens = rayOut.length / _MaxDistance;
+		float dens = saturate(rayOut.count * _Density);
 
 		gbuffer gbOut;
-		gbOut = CUSTOM_GBUFFER_OUTPUT(0.5, 0.5, normal, 0.5, depth);
+		gbOut = CUSTOM_GBUFFER_OUTPUT(0.5, 0.5, normal, 0.5, rayDepth);
 
+		//half4 col = half4(gbOut.diffuse.rgb, dens);
+		
 		//return gbOut;
 		//return gbOut.depth;
-		return half4(i.screenPos.xy, depth, 1);
+		//return half4(rayOut.pos.y, depth, rayDepth, 1);
+		//return half4(worldPos.xyz * 2, 1);
+		//return half4(rayOut.pos.xyz, rayDepth);
+		//return half4(gbOut.diffuse.rgb, rayDepth);
+		//return half4(1, 0, 0, pow(saturate(1 - rayDepth), _Density));
+		return half4(rayDepth, dens, 0, 1);
 
+		//return col;
 	}
 	ENDCG
 
@@ -283,7 +309,7 @@
 	{
 		//Tags { "RenderType"="Opaque" }
 
-		Cull Off
+		//Cull Off
 		ZWrite Off
 		Blend SrcAlpha OneMinusSrcAlpha
 		//Stencil

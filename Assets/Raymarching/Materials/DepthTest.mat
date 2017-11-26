@@ -72,7 +72,7 @@ Material:
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _UVSec: 0
-    - _WaveHeight: 5
+    - _WaveHeight: 10
     - _WaveNoiseScale: 0.1
     - _ZWrite: 1
     m_Colors:

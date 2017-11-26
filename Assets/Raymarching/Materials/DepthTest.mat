@@ -63,6 +63,7 @@ Material:
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
+    - _HolePower: 10
     - _MaxDistance: 2
     - _Metallic: 0
     - _Mode: 0
@@ -72,7 +73,7 @@ Material:
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _UVSec: 0
-    - _WaveHeight: 10
+    - _WaveHeight: 2.5
     - _WaveNoiseScale: 0.1
     - _ZWrite: 1
     m_Colors:

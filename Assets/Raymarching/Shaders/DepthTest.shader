@@ -17,7 +17,7 @@ Shader "Raymarching/DepthTest"
 		_WaveHeight("Wave Height", Float) = 1
 		_WaveNoiseScale("Wave Noise Scale", Float) = 1
 		_NoiseSpeed("Noise Speed", Vector) = (0, 1, 0, 0)
-
+		_HolePower("Hole Power", Float) = 10
 	}
 
 	CGINCLUDE
@@ -178,10 +178,17 @@ Shader "Raymarching/DepthTest"
 	float _WaveNoiseScale;
 	float3 _NoiseSpeed;
 
+	float3 _PositionTextureOffset;
+	float _HolePower;
+
 	UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
 	UNITY_DECLARE_DEPTH_TEXTURE(_LastCameraDepthTexture);
 
 	UNITY_DECLARE_DEPTH_TEXTURE(_CustomCameraDepthTexture);
+	
+	sampler2D_float _PositionTexture;	// オブジェクトの位置を書き込んだテクスチャ
+	float4 _PositionTexture_TexelSize;
+	float _PositionTextureScale;
 
 	float CustomDistanceFunction(float3 pos) 
 	{
@@ -269,74 +276,52 @@ Shader "Raymarching/DepthTest"
 	float GetDepthTex2D(float2 uv)
 	{
 		return  Linear01Depth(SAMPLE_DEPTH_TEXTURE(_CustomCameraDepthTexture, uv).x);
-		//return  SAMPLE_DEPTH_TEXTURE(_CustomCameraDepthTexture, uv).x;
-		//return tex2D(_CustomCameraDepthTexture, uv).x;
-
-		//return Linear01Depth(DecodeFloatRGBA(tex2D(_CustomCameraDepthTexture, uv)));
 	}
 
-	raymarchOut raymarch(float2 screenPos, float3 worldPos, float3 rayDir, const int trial_num)
+	raymarchOut raymarch(float2 screenPos, float3 worldPos, float3 rayDir)
 	{
 		raymarchOut o;
 
-		//float3 rayDir = GetRayDir(screenPos);
-		//float3 camPos = GetCameraPosition();
-		//float maxDistance = GetCameraMaxDistance();
 		float maxDistance = _MaxDistance;
 
-		//o.length = 0;
-		//o.pos = camPos + _ProjectionParams.y * rayDir;
 		o.pos = worldPos;
 		
 		float2 uv = GetDepthUV(screenPos.xy);
-		/*
-		float2 uv = (screenPos.xy + float2(1, 1)) * 0.5;
-#if UNITY_UV_STARTS_AT_TOP
-		uv.y = 1.0 - uv.y;
-#endif
-		*/
+
 		float depth = GetDepthTex2D(uv);
 		//float depth = Linear01Depth(tex2D(_CustomCameraDepthTexture, uv).x);
 		//float depth = tex2D(_CustomCameraDepthTexture, uv).x;
 		//float depth = Linear01Depth(SAMPLE_DEPTH_TEXTURE(_CustomCameraDepthTexture, uv).x);
 		//float depth = SAMPLE_DEPTH_TEXTURE(_CustomCameraDepthTexture, uv).x;
 		float rayDepth = Linear01Depth(GetDepth(o.pos));
-//		float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv).x;
-//#if defined(UNITY_REVERSED_Z)
-//		depth = 1.0f - depth;
-//#endif
 		
-		//float distance = GetDepthNearFar(depth) - GetDepthNearFar(rayDepth);
-		//float dist = min(GetDepthNearFar(depth) - GetDepthNearFar(rayDepth), maxDistance);
 		float dist = min(GetDepthNearFar(depth - rayDepth), maxDistance);
-		//float distance = min(GetDepthNearFar(rayDepth), maxDistance);
-		//float distance = GetDepthNearFar(rayDepth);
 
 		o.distance = o.length = dist;
 		o.pos += rayDir * o.distance;
-/*
-		for (o.count = 0; o.count < trial_num; ++o.count) {
-			//o.distance = CUSTOM_DISTANCE_FUNCTION(Localize(o.pos, tr));
-			o.distance = 0.01;	// 少しずつ進ませる
-			o.length += o.distance;
-			o.pos += rayDir * o.distance;
-			float rayDepth = Linear01Depth(GetDepth(o.pos));
-			//float depth = Linear01Depth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, screenPos).x);
-			//float4 pos = UnityObjectToClipPos(float4(o.pos, 1));
-			//float rayDepth = Linear01Depth(pos.z / pos.w);
-			//if (o.distance < RAY_HIT_DISTANCE || o.length > maxDistance)
-			//if (o.distance < RAY_HIT_DISTANCE || o.length > maxDistance || rayDepth >= depth)
-			if (o.length > maxDistance || rayDepth >= depth)
-			//if (o.length > maxDistance)
-				break;
-		}
-		*/
+
 		return o;
 	}
 
 	float3 GetWorldPos(float4 pos)
 	{
 		return mul(unity_ObjectToWorld, pos).xyz * _WaveNoiseScale + _NoiseSpeed * _Time.y;
+	}
+
+	
+	// PostionTexture内でのUV座標に変換
+	float2 GetWorldPositionTexturePosition(float3 pos)
+	{
+		return (pos.xz - _PositionTextureOffset.xz) / _PositionTextureScale * 0.5 + 0.5;
+		//return pos.xz / _PositionTextureScale * 0.5 + 0.5;
+	}
+
+	float GetWorldPositionTextureHeight(float4 pos)
+	{
+		float2 posUV = GetWorldPositionTexturePosition(mul(unity_ObjectToWorld, pos).xyz);
+		float col = DecodeFloatRGBA(tex2Dlod(_PositionTexture, float4(posUV, 0,0)));
+
+		return col * _HolePower;
 	}
 
 	float GetNoise(float4 vertex)
@@ -346,51 +331,22 @@ Shader "Raymarching/DepthTest"
 		// ノイズで歪ませてみる
 		vertex.y += (fbm(wpos) - 0.5) * _WaveHeight;
 
+		// オブジェクトの位置をへこませる
+		vertex.y -= GetWorldPositionTextureHeight(vertex);
+		
 		return vertex.y;
 	}
 
 	float3 GetNormalNoise(float4 pos)
 	{
 		const float delta = 0.001;
-
-		/*
-		return normalize(float3(
-			CUSTOM_DISTANCE_FUNCTION_OS(pos + float3(delta, 0, 0)) - CUSTOM_DISTANCE_FUNCTION_OS(pos + float3(-delta, 0, 0)),
-			CUSTOM_DISTANCE_FUNCTION_OS(pos + float3(0, delta, 0)) - CUSTOM_DISTANCE_FUNCTION_OS(pos + float3(0, -delta, 0)),
-			CUSTOM_DISTANCE_FUNCTION_OS(pos + float3(0, 0, delta)) - CUSTOM_DISTANCE_FUNCTION_OS(pos + float3(0, 0, -delta))
-			)) * 0.5 + 0.5;
-		*/
-		//pos = ToLocal(pos);
-		/*
-		return normalize(float3(
-			noise(pos + float3(-delta, 0, 0)) - noise(pos + float3(delta, 0, 0)),
-			noise(pos + float3(0, -delta, 0)) - noise(pos + float3(0, delta, 0)),
-			noise(pos + float3(0, 0, -delta)) - noise(pos + float3(0, 0, delta))
-			));
-			*/
-		/*
-		return normalize(float3(
-			noise(pos + float3(-delta, 0, 0)) - noise(pos + float3(delta, 0, 0)),
-			noise(pos + float3(0, -delta, 0)) - noise(pos + float3(0, delta, 0)),
-			noise(pos + float3(0, 0, -delta)) - noise(pos + float3(0, 0, delta))
-			)) * 0.5 + 0.5;
-		*/
 		
 		return normalize(float3(
 			GetNoise(pos + float4(-delta, 0, 0, 0)) - GetNoise(pos + float4(delta, 0, 0, 0)),
 			GetNoise(pos + float4(0, -delta, 0, 0)) - GetNoise(pos + float4(0, delta, 0, 0)),
 			GetNoise(pos + float4(0, 0, -delta, 0)) - GetNoise(pos + float4(0, 0, delta, 0))
 			)) * 0.5 + 0.5;
-		
-		/*
-		return normalize(float3(
-			noise(pos + float3(delta, 0, 0)) - noise(pos + float3(-delta, 0, 0)),
-			noise(pos + float3(0, delta, 0)) - noise(pos + float3(0, -delta, 0)),
-			noise(pos + float3(0, 0, delta)) - noise(pos + float3(0, 0, -delta))
-			)) * 0.5 + 0.5;
-			*/
 	}
-
 
 	ENDCG
 
@@ -401,13 +357,7 @@ Shader "Raymarching/DepthTest"
 
 		Pass
 		{
-			//Tags{ "LightMode" = "Deferred" }
-			//Tags{ "Queue" = "Transparent" "RenderType" = "Transparent" }
-			//Tags{ "Queue" = "Transparent" "IgnoreProjector" = "True" "RenderType" = "Transparent" "LightMode" = "ForwardBase" }
-			//Tags{ "Queue" = "Transparent" "IgnoreProjector"="True" "RenderType" = "Transparent"}
 			Tags{ "LightMode" = "ForwardBase" }
-			//Tags{ "Queue"      = "AlphaTest" "IgnoreProjector"="True" "RenderType" = "TransparentCutout" "LightMode" = "ForwardBase" }
-			//Tags{ "IgnoreProjector"="True" "RenderType" = "TransparentCutout" "LightMode" = "ForwardBase" }
 
 			//ZWrite Off
 			Blend SrcAlpha OneMinusSrcAlpha
@@ -435,7 +385,7 @@ Shader "Raymarching/DepthTest"
 				float4 diff			: COLOR0;
 				//fixed3 ambient		: COLOR1;
 				SHADOW_COORDS(3) // put shadows data into TEXCOORD3
-				float3 normal		: TEXCOORD4;
+				//float3 normal		: TEXCOORD4;
 				//LIGHTING_COORDS(5,7)
 			};
 
@@ -450,27 +400,19 @@ Shader "Raymarching/DepthTest"
 				// ノイズで歪ませてみる
 				v.vertex.y += (fbm(wpos) - 0.5) * _WaveHeight;
 
+				// オブジェクトの位置をへこませる
+				v.vertex.y -= GetWorldPositionTextureHeight(v.vertex);
+
 				o.pos = UnityObjectToClipPos(v.vertex);
 				// ラスタライズしてフラグメントシェーダで各ピクセルの座標として使う
 				o.screenPos = o.pos;
 				o.worldPos = mul(unity_ObjectToWorld, v.vertex);
-				//o.worldNormal = GetNormalNoise(wpos.xyz);
-				//o.worldNormal = GetNormalNoise(v.vertex.xyz);
-				//float3 normal = GetNormalNoise(v.vertex.xyz);
+
 				float3 normal = GetNormalNoise(pos);
 				//o.worldNormal = UnityObjectToWorldNormal(normal);
 				o.worldNormal = normal;
 
 				TRANSFER_SHADOW(o)
-
-				//o.normal = mul(unity_WorldToObject, float4(o.worldNormal, 1.0)).xyz;
-				//o.normal = normalize(mul(o.worldNormal, unity_WorldToObject).xyz);
-				//o.normal = UnityWorldToObjectDir(o.worldNormal);
-				//o.normal = (o.worldNormal - 0.5) * 2.0;
-				//o.normal = v.normal;
-				//o.normal = o.worldNormal;
-				o.normal = normal;
-				//o.normal = normalize(mul(o.worldNormal, (float3x3)unity_WorldToObject));
 
 				//half nl = max(0, dot(o.worldNormal, _WorldSpaceLightPos0.xyz));
 				//o.diff = nl * _LightColor0;
@@ -496,55 +438,28 @@ Shader "Raymarching/DepthTest"
 
 				float3 rayDir = GetRayDir(i.screenPos);
 
-				rayOut = raymarch(i.screenPos, i.worldPos, rayDir, 500);
+				rayOut = raymarch(i.screenPos, i.worldPos, rayDir);
 				//clip(-rayOut.distance + RAY_HIT_DISTANCE);
 
-				float2 uv = GetDepthUV(i.screenPos.xy);
-				/*
-				float2 uv = (i.screenPos.xy + float2(1, 1)) * 0.5;
-				//float2 uv = (i.screenPos.xy);
-		#if UNITY_UV_STARTS_AT_TOP
-				uv.y = 1.0 - uv.y;
-		#endif
-				*/
+				//float2 uv = GetDepthUV(i.screenPos.xy);
 
 				//float4 pos = UnityObjectToClipPos(float4(rayOut.pos, 1));
 				//float rayDepth = Linear01Depth(pos.z / pos.w);
 				//float rayDepth = Linear01Depth(pos.z / pos.w);
 				//float rayDepth = GetDepth(rayOut.pos);
-				float rayDepth = Linear01Depth(GetDepth(rayOut.pos));
+				//float rayDepth = Linear01Depth(GetDepth(rayOut.pos));
 				//float rayDepth = Linear01Depth(GetDepth(i.worldPos));
 
-				float depth = GetDepthTex2D(uv);
-				//float depth = Linear01Depth(tex2D(_CustomCameraDepthTexture, uv).x);
-				//float depth = (tex2D(_CustomCameraDepthTexture, uv).x);
-				//float depth = Linear01Depth(SAMPLE_DEPTH_TEXTURE(_CustomCameraDepthTexture , uv).x);
-				//float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv).x;
-				//float depth = SAMPLE_DEPTH_TEXTURE(_CustomCameraDepthTexture, uv).x;
-
-				//float dist = min(GetDepthNearFar(depth) - GetDepthNearFar(rayDepth), _MaxDistance);
+				//float depth = GetDepthTex2D(uv);
 
 				float3 normal = GetNormal(Localize(rayOut.pos, tr));
-				//float dens = saturate(dist / _MaxDistance * _Density);
 				float dens = saturate(rayOut.length / _MaxDistance * _Density);
-				//float dens = saturate(rayOut.length / _MaxDistance) * _Density;
-				//float dens = saturate(rayOut.count * _Density);
-				//float dens = saturate(rayOut.length / 1) * _Density;
 
-				gbuffer gbOut;
-				gbOut = CUSTOM_GBUFFER_OUTPUT(0.5, 0.5, normal, 0.5, rayDepth);
-
+				
 				fixed shadow = SHADOW_ATTENUATION(i);
-				//half nl = max(0, dot(i.normal, _WorldSpaceLightPos0.xyz));
 				half nl = max(0, dot(i.worldNormal, _WorldSpaceLightPos0.xyz));
-				//half nl = max(0, dot((i.worldNormal - 0.5) * 2, _WorldSpaceLightPos0.xyz));
-				//half nl = max(0, dot(i.normal, _WorldSpaceLightPos0.xyz));
-				//fixed3 lighting = i.diff + nl * _LightColor0 * shadow + ShadeSH9(half4(i.worldNormal,1));
 				fixed3 lighting = i.diff + nl * _LightColor0 * shadow;
-				//fixed3 lighting = i.diff + nl * _LightColor0;
-
-				//half4 col = half4(gbOut.diffuse.rgb, dens);
-		
+				
 				//return gbOut;
 				//return gbOut.depth;
 				//return half4(depth, 0, 0, 1);
@@ -573,7 +488,7 @@ Shader "Raymarching/DepthTest"
 				//float test = Linear01Depth(DecodeFloatRGBA(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv)));
 				//return half4(test, test, test, 1);
 
-				return half4(gbOut.diffuse.rgb * lighting, dens);
+				return half4(_Diffuse.rgb * lighting, dens);
 			}
 			ENDCG
 		}
@@ -588,8 +503,6 @@ Shader "Raymarching/DepthTest"
         {
 			Name "ShadowCaster"
 			Tags { "LightMode" = "ShadowCaster" }
-			//Tags{ "Queue" = "Geometry " "RenderType" = "Transparent" "LightMode" = "ShadowCaster" }
-			//Tags{ "Queue" = "AlphaTest " "RenderType" = "Overlay" "LightMode" = "ShadowCaster" }
 
 			//Blend SrcAlpha OneMinusSrcAlpha 
 
@@ -615,7 +528,6 @@ Shader "Raymarching/DepthTest"
 				float4 screenPos	: TEXCOORD1;
 				float4 worldPos		: TEXCOORD2;
 				float3 worldNormal	: TEXCOORD3;
-				float3 normal		: TEXCOORD4;
 			};
 
 			// レイの方向を取得
@@ -642,28 +554,21 @@ Shader "Raymarching/DepthTest"
 				v2f_shadow o;
 
 				float4 pos = v.vertex;
-				//float3 wpos = mul(unity_ObjectToWorld, v.vertex).xyz * _WaveNoiseScale + float3(0, _Time.y * 2, _Time.y);
 				float3 wpos = GetWorldPos(v.vertex);
-				//v.vertex.xyz = v.vertex.xyz * _WaveNoiseScale + _NoiseSpeed * _Time.y;
 
 				// ノイズで歪ませてみる
 				v.vertex.y += (fbm(wpos) - 0.5) * _WaveHeight;
 
+				// オブジェクトの位置をへこませる
+				v.vertex.y -= GetWorldPositionTextureHeight(v.vertex);
+
 				TRANSFER_SHADOW_CASTER_NORMALOFFSET(o)
-				//o.vertex = UnityObjectToClipPos(v.vertex);
 				// ラスタライズしてフラグメントシェーダで各ピクセルの座標として使う
 				o.screenPos = o.pos;
 				o.worldPos = mul(unity_ObjectToWorld, v.vertex);
-				//o.worldNormal = GetNormalNoise(wpos.xyz);
-				//o.worldNormal = GetNormalNoise(v.vertex.xyz);
-				float3 normal = GetNormalNoise(pos);
-				//o.worldNormal = UnityObjectToWorldNormal(normal);
-				o.worldNormal = normal;
 
-				//o.normal = v.normal;
-				//o.normal = mul(unity_WorldToObject, o.worldNormal);
-				//o.normal = o.worldNormal;
-				o.normal = normal;
+				float3 normal = GetNormalNoise(pos);
+				o.worldNormal = normal;
 
 				return o;
 			}
@@ -671,68 +576,16 @@ Shader "Raymarching/DepthTest"
 			
 			float4 frag_shadow(v2f_shadow i) : SV_Target
 			{
-				//i.screenPos.xy /= i.screenPos.w;
 
 				float3 rayDir = GetRayDirForShadow(i.screenPos);
 
 				raymarchOut rayOut;
 				
-				rayOut = raymarch(i.screenPos, i.worldPos, rayDir, 500);
+				rayOut = raymarch(i.screenPos, i.worldPos, rayDir);
 
 				SHADOW_CASTER_FRAGMENT(i)
 			}
 			
-			/*
-			
-#ifdef SHADOWS_CUBE
-			float4 frag_shadow(v2f_shadow i) : SV_Target
-			{
-				//i.screenPos.xy /= i.screenPos.w;
-
-				float3 rayDir = GetRayDirForShadow(i.screenPos);
-
-				raymarchOut rayOut;
-				
-				rayOut = raymarch(i.screenPos, i.worldPos, rayDir, 500);
-
-				i.vec = rayOut.pos - _LightPositionRange.xyz;
-
-				SHADOW_CASTER_FRAGMENT(i)
-			}
-#else
-
-			void frag_shadow(
-				v2f_shadow i, 
-				out float4 outColor : SV_Target, 
-				out float  outDepth : SV_Depth)
-			{
-				//i.screenPos.xy /= i.screenPos.w;
-
-				// light direction of directional light 
-				float3 rayDir = -UNITY_MATRIX_V[2].xyz;
-
-				// light direction of spot light
-				if ((UNITY_MATRIX_P[3].x != 0.0) || 
-					(UNITY_MATRIX_P[3].y != 0.0) || 
-					(UNITY_MATRIX_P[3].z != 0.0)) {
-					rayDir = GetRayDirForShadow(i.screenPos);
-				}
-
-				raymarchOut rayOut;
-
-				rayOut = raymarch(i.screenPos, i.worldPos, rayDir, 500);
-
-				//i.vec = rayOut.pos - _LightPositionRange.xyz;
-
-				//SHADOW_CASTER_FRAGMENT(i)
-				float4 opos = mul(unity_WorldToObject, float4(rayOut.pos, 1.0));
-				opos = UnityClipSpaceShadowCasterPos(opos, i.normal);
-				opos = UnityApplyLinearShadowBias(opos);
-
-				outColor = outDepth = opos.z / opos.w;
-			}
-#endif
-			*/
             ENDCG
         }
 		

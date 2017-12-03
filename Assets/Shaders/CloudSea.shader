@@ -155,8 +155,6 @@
 	float3 GetNormalNoise(float4 pos)
 	{
 		const float delta = 0.01;
-		//const float delta = 1.0 / (64);
-		//const float delta = 1.0;
 
 		return normalize(float3(
 			GetNoise(pos + float4(-delta, 0, 0, 0)) - GetNoise(pos + float4(delta, 0, 0, 0)),
@@ -307,6 +305,7 @@
 				v.vertex.y = GetNoise(v.vertex);
 
 				TRANSFER_SHADOW_CASTER_NORMALOFFSET(o)
+
 				// ラスタライズしてフラグメントシェーダで各ピクセルの座標として使う
 				o.screenPos = o.pos;
 				o.worldPos = mul(unity_ObjectToWorld, v.vertex);
@@ -318,14 +317,13 @@
 			float4 frag_shadow(v2f_shadow i) : SV_Target
 			{
 
-				float3 rayDir = GetRayDirForShadow(i.screenPos);
+				//float3 rayDir = GetRayDirForShadow(i.screenPos);
 
-				raymarchOut rayOut;
+				//raymarchOut rayOut;
 				
-				rayOut = raymarch(i.screenPos, i.worldPos, rayDir);
+				//rayOut = raymarch(i.screenPos, i.worldPos, rayDir);
 
-				//SHADOW_CASTER_FRAGMENT(i)
-				return 0;
+				SHADOW_CASTER_FRAGMENT(i)
 			}
 			
             ENDCG

@@ -86,7 +86,7 @@ public class PositionTexture : MonoBehaviour {
         tex.autoGenerateMips = false;
         tex.filterMode = FilterMode.Bilinear;
         tex.useMipMap = false;
-        tex.wrapMode = TextureWrapMode.Repeat;
+        tex.wrapMode = TextureWrapMode.Clamp;
         tex.hideFlags = HideFlags.HideAndDontSave;
         tex.Create();
 
@@ -130,7 +130,8 @@ public class PositionTexture : MonoBehaviour {
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireCube(transform.position, new Vector3(worldScale, 0, worldScale));
+        float scale = worldScale * 2f;
+        Gizmos.DrawWireCube(transform.position, new Vector3(scale, 0, scale));
     }
 
     private void OnGUI()

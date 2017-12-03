@@ -339,7 +339,7 @@ Shader "Raymarching/DepthTest"
 
 	float3 GetNormalNoise(float4 pos)
 	{
-		const float delta = 0.001;
+		const float delta = 0.1;
 		
 		return normalize(float3(
 			GetNoise(pos + float4(-delta, 0, 0, 0)) - GetNoise(pos + float4(delta, 0, 0, 0)),
@@ -395,6 +395,7 @@ Shader "Raymarching/DepthTest"
 
 				float4 pos = v.vertex;
 				//float3 wpos = mul(unity_ObjectToWorld, v.vertex).xyz * _WaveNoiseScale + float3(-0.63, 0.85, 1) * _Time.y;
+				/*
 				float3 wpos = GetWorldPos(v.vertex);
 
 				// ノイズで歪ませてみる
@@ -402,6 +403,8 @@ Shader "Raymarching/DepthTest"
 
 				// オブジェクトの位置をへこませる
 				v.vertex.y -= GetWorldPositionTextureHeight(v.vertex);
+				*/
+				v.vertex.y = GetNoise(v.vertex);
 
 				o.pos = UnityObjectToClipPos(v.vertex);
 				// ラスタライズしてフラグメントシェーダで各ピクセルの座標として使う

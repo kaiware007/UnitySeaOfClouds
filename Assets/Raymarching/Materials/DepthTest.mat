@@ -7,12 +7,12 @@ Material:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 0}
   m_Name: DepthTest
-  m_Shader: {fileID: 4800000, guid: 3fddcb069b949ce4f867ee3e2fc73ab1, type: 3}
+  m_Shader: {fileID: 4800000, guid: df0d3d9d491f0de4dba64b0ad64f2785, type: 3}
   m_ShaderKeywords: 
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 2450
+  m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
   m_SavedProperties:
@@ -73,12 +73,12 @@ Material:
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _UVSec: 0
-    - _WaveHeight: 2.5
+    - _WaveHeight: 10
     - _WaveNoiseScale: 0.1
     - _ZWrite: 1
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _Diffuse: {r: 0.5019608, g: 0.5019608, b: 0.591, a: 1}
+    - _Diffuse: {r: 1, g: 0, b: 0.88965464, a: 1}
     - _Emission: {r: 0.5, g: 0.5, b: 0.5, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _LightDir: {r: 0, g: -1, b: 0, a: 0}

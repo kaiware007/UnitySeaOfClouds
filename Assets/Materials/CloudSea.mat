@@ -6,7 +6,7 @@ Material:
   m_ObjectHideFlags: 0
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 0}
-  m_Name: DepthTest
+  m_Name: CloudSea
   m_Shader: {fileID: 4800000, guid: df0d3d9d491f0de4dba64b0ad64f2785, type: 3}
   m_ShaderKeywords: 
   m_LightmapFlags: 4
@@ -64,7 +64,7 @@ Material:
     - _Glossiness: 0.5
     - _GlossyReflections: 1
     - _HolePower: 10
-    - _MaxDistance: 2
+    - _MaxDistance: 5
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1

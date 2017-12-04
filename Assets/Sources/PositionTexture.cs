@@ -100,10 +100,9 @@ public class PositionTexture : MonoBehaviour {
 
         material.SetBuffer("_PositionBuffer", positionDataBuffer);
         material.SetInt("_PositionIndex", positionDataIndex);
-        //material.SetVector("_InvWorldScale", invWorldScale);
         material.SetFloat("_FadeoutPower", fadeoutPower);
 
-        // コピー
+        // フェード処理用に前フレームのテクスチャをコピー
         Graphics.Blit(positionTexture, positionTextureOld);
 
         // 円描画

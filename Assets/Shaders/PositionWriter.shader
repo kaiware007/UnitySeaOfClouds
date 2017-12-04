@@ -63,15 +63,11 @@
 				for(int j = 0; j < _PositionIndex; j++){
 					float2 pos = _PositionBuffer[j].position;
 					float radius = _PositionBuffer[j].radius;
-					//float len = pow(radius / length(i.uv - pos), 2.0);
-					//float len = radius / length(i.uv - pos);
 					float len = smoothstep(0, 1, radius / length(i.uv - pos));
 					circleCol += saturate(len);
 				}
 				
-				return EncodeFloatRGBA(saturate(circleCol + col) * (1.0 - _FadeoutPower));
-				//return saturate(circleCol * 0.1 + col - fixed4(1,1,1,1) * _FadeoutPower);
-				//return saturate(circleCol + col) * (1.0 - _FadeoutPower);
+				return EncodeFloatRGBA(saturate(circleCol + col) * _FadeoutPower);
 			}
 			ENDCG
 		}

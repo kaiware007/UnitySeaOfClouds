@@ -64,7 +64,7 @@ Material:
     - _Glossiness: 0.5
     - _GlossyReflections: 1
     - _HolePower: 10
-    - _MaxDistance: 5
+    - _MaxDistance: 2.5
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1
@@ -74,7 +74,7 @@ Material:
     - _SrcBlend: 1
     - _UVSec: 0
     - _WaveHeight: 10
-    - _WaveNoiseScale: 0.1
+    - _WaveNoiseScale: 0.025
     - _ZWrite: 1
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}

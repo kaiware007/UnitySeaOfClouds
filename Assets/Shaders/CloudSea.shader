@@ -188,7 +188,6 @@
 			struct v2f
 			{
 				float4 pos			: SV_POSITION;
-				float4 diff			: COLOR0;
 				float4 screenPos	: TEXCOORD0;
 				float4 worldPos		: TEXCOORD1;
 				float3 worldNormal	: TEXCOORD2;
@@ -215,9 +214,6 @@
 				float3 normal = GetNormalNoise(pos);
 				o.worldNormal = normal;
 
-				o.diff.rgb = ShadeSH9(half4( normalize(mul(normal, (float3x3)unity_WorldToObject)),1));
-				o.diff.a = 1;
-
 				return o;
 			}
 
@@ -227,6 +223,7 @@
 
 				float3 normal = GetNormalNoise(i.localPos);
 				
+				// 球面調和
 				float4 diff;
 				diff.rgb = ShadeSH9(half4(normalize(mul(normal, (float3x3)unity_WorldToObject)), 1));
 				diff.a = 1;
@@ -240,9 +237,7 @@
 				float dens = saturate(rayOut.length / _MaxDistance * _Density);
 				
 				fixed shadow = SHADOW_ATTENUATION(i);
-				//half nl = max(0, dot(i.worldNormal, _WorldSpaceLightPos0.xyz));
 				half nl = max(0, dot(normal, _WorldSpaceLightPos0.xyz));
-				//fixed3 lighting = i.diff + nl * _LightColor0 * shadow;
 				fixed3 lighting = diff + nl * _LightColor0 * shadow;
 
 				return half4(_Diffuse.rgb * lighting, dens);
@@ -273,27 +268,7 @@
 
 			struct v2f_shadow { 
 				V2F_SHADOW_CASTER;
-				float4 screenPos	: TEXCOORD1;
-				float4 worldPos		: TEXCOORD2;
 			};
-
-			// レイの方向を取得
-			float3 GetRayDirForShadow(float4 screenPos)
-			{
-				float4 sp = screenPos;
-
-#if UNITY_UV_STARTS_AT_TOP
-				sp.y *= -1.0;
-#endif
-				sp.xy /= sp.w;
-
-				float3 camDir = GetCameraForward();
-				float3 camUp = GetCameraUp();
-				float3 camSide = GetCameraRight();
-				float3 focalLen = GetCameraFocalLength();
-
-				return normalize((camSide * sp.x) + (camUp * sp.y) + (camDir * focalLen));
-			}
 
 			v2f_shadow vert_shadow(appdata_base v)
 			{
@@ -306,23 +281,12 @@
 
 				TRANSFER_SHADOW_CASTER_NORMALOFFSET(o)
 
-				// ラスタライズしてフラグメントシェーダで各ピクセルの座標として使う
-				o.screenPos = o.pos;
-				o.worldPos = mul(unity_ObjectToWorld, v.vertex);
-
 				return o;
 			}
 			
 			
 			float4 frag_shadow(v2f_shadow i) : SV_Target
 			{
-
-				//float3 rayDir = GetRayDirForShadow(i.screenPos);
-
-				//raymarchOut rayOut;
-				
-				//rayOut = raymarch(i.screenPos, i.worldPos, rayDir);
-
 				SHADOW_CASTER_FRAGMENT(i)
 			}
 			

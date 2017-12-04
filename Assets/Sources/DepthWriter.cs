@@ -12,6 +12,7 @@ public class DepthWriter : CustomImageEffect {
     {
         base.Awake();
 
+        // Depth書き込み用RenderTexture作成(DirectX9の場合、DepthはR32floatらしい)
         depthTexture = new RenderTexture(Screen.width, Screen.height, 32, RenderTextureFormat.Depth);
         depthTexture.wrapMode = TextureWrapMode.Clamp;
         depthTexture.filterMode = FilterMode.Bilinear;
